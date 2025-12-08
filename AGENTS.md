@@ -6,7 +6,7 @@ This document serves as the authoritative guide for AI agents and developers wor
 **tui-financeira** is a Terminal User Interface (TUI) application built with Python and [Textual](https://textual.textualize.io/). It calculates and projects personal budget scenarios, taking into account Brazilian payroll specificities such as Dynamic Holidays, Weekly Rest (DSR), INSS, and IRRF taxes.
 
 ## 2. Technology Stack & Environment
-*   **Language:** Python 3.14+
+*   **Language:** Python 3.13+
 *   **Dependency Manager:** `uv`
 *   **UI Framework:** `textual`
 *   **Domain Libraries:** `holidays` (for Brazilian holidays)
