@@ -1,0 +1,19 @@
+{
+  "configuracao": {
+    "salario_base": 2772.00,
+    "produtividade_media": 542.40,
+    "meta_investimento_percentual": 0.20,
+    "estado_feriados": "SP"
+  },
+  "gastos_fixos": [
+    {"nome": "Aluguel", "valor": 1200.00, "categoria": "Moradia"}
+  ],
+  "parcelamentos": [
+    {
+      "nome": "Notebook",
+      "valor_parcela": 350.00,
+      "inicio": "2024-09",
+      "fim": "2025-06"
+    }
+  ]
+}

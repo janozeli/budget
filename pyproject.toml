@@ -1,0 +1,23 @@
+[project]
+name = "tui-financeira"
+version = "0.1.0"
+description = "TUI Financeira com Python 3.14"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "textual>=0.70.0",
+    "holidays>=0.50",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.5.0",
+    "mypy>=1.10.0",
+]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
