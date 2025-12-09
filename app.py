@@ -60,7 +60,6 @@ class TuiFinanceira(App[None]):
 
     .kpi-value {
         text-style: bold;
-        font-size: 2;
         padding-top: 1;
     }
 
