@@ -26,9 +26,17 @@ def test_analisar_calendario_sp_july_2024() -> None:
     # Total Rest Days: 4 + 1 = 5
     # Total Work Days: 31 - 5 = 26
 
-    uteis, descanso = analisar_calendario(2024, 7, "SP")
+    uteis, descanso, uteis_beneficios = analisar_calendario(2024, 7, "SP")
     assert descanso == 5
     assert uteis == 26
+    # July 2024:
+    # 1st is Mon. 31 days.
+    # Sats: 6, 13, 20, 27 (4 days)
+    # Suns: 7, 14, 21, 28 (4 days)
+    # Holiday: July 9 (Tue)
+    # Weekdays (Mon-Fri) = 31 - 4(Sat) - 4(Sun) = 23.
+    # Minus Holiday (Tue 9) = 22.
+    assert uteis_beneficios == 22
 
 def test_analisar_calendario_april_2024_overlap() -> None:
     # April 2024
@@ -41,9 +49,18 @@ def test_analisar_calendario_april_2024_overlap() -> None:
     # Total days: 30.
     # Work days: 26.
 
-    uteis, descanso = analisar_calendario(2024, 4, "SP")
+    uteis, descanso, uteis_beneficios = analisar_calendario(2024, 4, "SP")
     assert descanso == 4
     assert uteis == 26
+    # April 2024
+    # 30 days.
+    # Suns: 7, 14, 21, 28 (4) -> 21 is also holiday.
+    # Sats: 6, 13, 20, 27 (4)
+    # Weekdays (Mon-Fri) = 30 - 4 - 4 = 22.
+    # No other holidays in April 2024 (Tiradentes is on Sun).
+    # Wait, May 1st is close, but April only.
+    # So 22.
+    assert uteis_beneficios == 22
 
 def test_calcular_inss() -> None:
     # Based on 2024 table in code
@@ -102,7 +119,9 @@ def test_calcular_holerite() -> None:
         salario_base=Decimal("2000.00"),
         produtividade_media=Decimal("500.00"),
         meta_investimento_percentual=Decimal("0.10"),
-        estado_feriados="SP"
+        estado_feriados="SP",
+        valor_diario_vt=Decimal("0.00"),
+        valor_diario_va=Decimal("0.00")
     )
     # Mocking simple days
     dias_uteis = 20
@@ -138,7 +157,9 @@ def test_load_data() -> None:
             "salario_base": 2772.00,
             "produtividade_media": 542.40,
             "meta_investimento_percentual": 0.20,
-            "estado_feriados": "SP"
+            "estado_feriados": "SP",
+            "valor_diario_vt": 10.00,
+            "valor_diario_va": 20.00
         },
         "gastos_fixos": [
             {"nome": "Aluguel", "valor": 1200.00, "categoria": "Moradia"}
@@ -156,6 +177,7 @@ def test_load_data() -> None:
     with patch("builtins.open", mock_open(read_data=mock_json)):
         data = load_data("dummy.json")
         assert data.configuracao.salario_base == Decimal("2772.00")
+        assert data.configuracao.valor_diario_vt == Decimal("10.00")
         assert len(data.gastos_fixos) == 1
         assert data.gastos_fixos[0].nome == "Aluguel"
         assert len(data.parcelamentos) == 1
@@ -166,7 +188,9 @@ def test_gerar_projecao() -> None:
         salario_base=Decimal("1000.00"),
         produtividade_media=Decimal("0.00"),
         meta_investimento_percentual=Decimal("0.0"),
-        estado_feriados="SP"
+        estado_feriados="SP",
+        valor_diario_vt=Decimal("0.00"),
+        valor_diario_va=Decimal("0.00")
     )
     gastos = [GastoFixo("Fix", Decimal("100.00"), "Cat")]
     # Parcelamento valid for a long time
@@ -187,3 +211,35 @@ def test_gerar_projecao() -> None:
     assert m.salario_bruto == Decimal("1000.00")
     assert m.gastos_totais == Decimal("150.00")
     assert m.saldo_livre == m.salario_liquido - m.gastos_totais
+
+def test_gerar_projecao_com_beneficios() -> None:
+    # Setup data with benefits
+    config = Configuracao(
+        salario_base=Decimal("1000.00"),
+        produtividade_media=Decimal("0.00"),
+        meta_investimento_percentual=Decimal("0.0"),
+        estado_feriados="SP",
+        valor_diario_vt=Decimal("10.00"),
+        valor_diario_va=Decimal("20.00")
+    )
+    gastos: list[GastoFixo] = []
+    parc: list[Parcelamento] = []
+
+    data = OrcamentoData(config, gastos, parc)
+
+    proj = gerar_projecao(data, meses=1)
+    m = proj[0]
+
+    # Check calendar calculation for the current month
+    uteis, descanso, uteis_beneficios = analisar_calendario(m.data.year, m.data.month, "SP")
+
+    expected_benefits = (Decimal("10.00") + Decimal("20.00")) * uteis_beneficios
+
+    # Holerite calculation (base 1000)
+    # Bruto = 1000.
+    # INSS on 1000 = 75.00
+    # Liq Holerite = 925.00
+
+    expected_liquid = Decimal("925.00") + expected_benefits
+
+    assert m.salario_liquido == expected_liquid
