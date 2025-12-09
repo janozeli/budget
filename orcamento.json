@@ -3,7 +3,9 @@
     "salario_base": 2772.00,
     "produtividade_media": 542.40,
     "meta_investimento_percentual": 0.20,
-    "estado_feriados": "SP"
+    "estado_feriados": "SP",
+    "valor_diario_vt": 0.00,
+    "valor_diario_va": 0.00
   },
   "gastos_fixos": [
     {"nome": "Aluguel", "valor": 1200.00, "categoria": "Moradia"}

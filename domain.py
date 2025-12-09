@@ -13,6 +13,8 @@ class Configuracao:
     produtividade_media: Decimal
     meta_investimento_percentual: Decimal
     estado_feriados: str
+    valor_diario_vt: Decimal
+    valor_diario_va: Decimal
 
 @dataclass
 class GastoFixo:
@@ -72,7 +74,9 @@ def load_data(filepath: str = "orcamento.json") -> OrcamentoData:
         salario_base=Decimal(str(data["configuracao"]["salario_base"])),
         produtividade_media=Decimal(str(data["configuracao"]["produtividade_media"])),
         meta_investimento_percentual=Decimal(str(data["configuracao"]["meta_investimento_percentual"])),
-        estado_feriados=data["configuracao"]["estado_feriados"]
+        estado_feriados=data["configuracao"]["estado_feriados"],
+        valor_diario_vt=Decimal(str(data["configuracao"].get("valor_diario_vt", "0.00"))),
+        valor_diario_va=Decimal(str(data["configuracao"].get("valor_diario_va", "0.00")))
     )
 
     gastos_fixos = [
@@ -94,31 +98,36 @@ def load_data(filepath: str = "orcamento.json") -> OrcamentoData:
 
     return OrcamentoData(config, gastos_fixos, parcelamentos)
 
-def analisar_calendario(ano: int, mes: int, estado: str) -> Tuple[int, int]:
+def analisar_calendario(ano: int, mes: int, estado: str) -> Tuple[int, int, int]:
     """
-    Retorna (dias_uteis, dias_descanso).
+    Retorna (dias_uteis, dias_descanso, dias_uteis_beneficios).
     Dias úteis: Segunda a Sábado (exceto feriados).
     Dias descanso: Domingos + Feriados.
+    Dias úteis benefícios: Segunda a Sexta (exceto feriados).
     """
     br_holidays = holidays.country_holidays("BR", subdiv=estado, years=ano)
     month_days = calendar.monthrange(ano, mes)[1]
 
     dias_uteis = 0
     dias_descanso = 0
+    dias_uteis_beneficios = 0
 
     for day in range(1, month_days + 1):
         date_obj = datetime.date(ano, mes, day)
 
         is_sunday = (date_obj.weekday() == 6)
         is_holiday = (date_obj in br_holidays)
+        is_saturday = (date_obj.weekday() == 5)
 
         if is_sunday or is_holiday:
             dias_descanso += 1
         else:
             # Segunda (0) a Sabado (5) e nao feriado
             dias_uteis += 1
+            if not is_saturday:
+                dias_uteis_beneficios += 1
 
-    return dias_uteis, dias_descanso
+    return dias_uteis, dias_descanso, dias_uteis_beneficios
 
 def calcular_inss(bruto: Decimal) -> Decimal:
     # Tabela Progressiva INSS 2024 (aproximada)
@@ -201,10 +210,16 @@ def gerar_projecao(dados: OrcamentoData, meses: int = 12) -> List[MesProjecao]:
         data_ref = datetime.date(ano_real, mes_real, 1)
 
         # 1. Calendario
-        dias_uteis, dias_descanso = analisar_calendario(ano_real, mes_real, dados.configuracao.estado_feriados)
+        dias_uteis, dias_descanso, dias_uteis_beneficios = analisar_calendario(ano_real, mes_real, dados.configuracao.estado_feriados)
 
         # 2. Holerite
         holerite = calcular_holerite(dados.configuracao, dias_uteis, dias_descanso)
+
+        # Calcular benefícios (VA + VT)
+        total_beneficios = (dados.configuracao.valor_diario_vt + dados.configuracao.valor_diario_va) * dias_uteis_beneficios
+
+        # Adicionar benefícios à receita líquida
+        salario_liquido_com_beneficios = holerite["liquido"] + total_beneficios
 
         # 3. Gastos Fixos
         total_fixos = sum((g.valor for g in dados.gastos_fixos), start=Decimal("0.00"))
@@ -218,15 +233,15 @@ def gerar_projecao(dados: OrcamentoData, meses: int = 12) -> List[MesProjecao]:
                 detalhes_parcelas.append(p.nome)
 
         gastos_totais = total_fixos + total_parcelas
-        saldo_livre = holerite["liquido"] - gastos_totais
-        meta_investimento = holerite["liquido"] * dados.configuracao.meta_investimento_percentual
+        saldo_livre = salario_liquido_com_beneficios - gastos_totais
+        meta_investimento = salario_liquido_com_beneficios * dados.configuracao.meta_investimento_percentual
 
         projecao.append(MesProjecao(
             data=data_ref,
             salario_bruto=holerite["bruto"],
             desconto_inss=holerite["inss"],
             desconto_irrf=holerite["irrf"],
-            salario_liquido=holerite["liquido"],
+            salario_liquido=salario_liquido_com_beneficios,
             gastos_totais=gastos_totais,
             gastos_fixos=total_fixos,
             gastos_parcelados=total_parcelas,
